@@ -215,9 +215,11 @@ function Get-ToolList {
         }
     }
 
-    $tools = foreach ($filePath in $seen.Values) {
+    $tools = @(foreach ($filePath in $seen.Values) {
         Read-ToolMetadata -FilePath $filePath
-    }
+    })
+
+    if ($tools.Count -eq 0) { return @() }
 
     # Sort alphabetically by display name
     return @($tools | Sort-Object Name)
@@ -267,7 +269,7 @@ function Invoke-Tool {
         [System.Windows.Window]$OwnerWindow
     )
 
-    $argList = @('-NoProfile', '-File', $Tool.FilePath)
+    $argList = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', "`"$($Tool.FilePath)`"")
 
     $startParams = @{
         FilePath     = 'pwsh.exe'
@@ -556,7 +558,7 @@ function Start-BeltApp {
 
     # ── Initial tool scan ───────────────────────────────────────────────────
     $toolPaths     = [string[]]$config['toolPaths']
-    $script:Tools  = Get-ToolList -ToolPaths $toolPaths
+    $script:Tools  = @(Get-ToolList -ToolPaths $toolPaths)
     $script:LastRefreshTime = [datetime]::Now
     Update-ToolPanel -Tools $script:Tools
 
@@ -578,7 +580,7 @@ function Start-BeltApp {
     $btnRefresh.Add_Click({
         $cfg      = Read-Config
         $paths    = [string[]]$cfg['toolPaths']
-        $script:Tools            = Get-ToolList -ToolPaths $paths
+        $script:Tools            = @(Get-ToolList -ToolPaths $paths)
         $script:LastRefreshTime  = [datetime]::Now
         Update-ToolPanel -Tools $script:Tools
         $rc = Get-RunningCount

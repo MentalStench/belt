@@ -1,0 +1,8 @@
+Create a powershell script that displays a window
+In the window I want a set of buttons, like a tool bar
+Each button will pop open a new window. That new window will also be created by running a powershell script.
+So, there are individual powershell scripts that have windows. They are utilities.
+I want to collect each utility into a main parent window.
+Like a toolbox full of tools.
+The toolbox needs to be able to populate its' tool simply by reading all scripts in a specified folder.
+Each script will get its own button.

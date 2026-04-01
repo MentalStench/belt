@@ -25,23 +25,15 @@ $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName PresentationFramework
 Add-Type -AssemblyName PresentationCore
 Add-Type -AssemblyName WindowsBase
-Add-Type -AssemblyName System.Windows.Forms   # Screen enumeration for multi-monitor
 
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
 $script:ScriptRoot   = $PSScriptRoot
 $script:ConfigPath   = Join-Path $script:ScriptRoot 'belt.json'
-$script:DefaultTools = Join-Path $script:ScriptRoot 'tools'
 
 $script:DefaultConfig = [ordered]@{
-    toolPaths = @('./tools')
-    window    = [ordered]@{
-        left   = 100
-        top    = 100
-        width  = 600
-        height = 400
-    }
+    toolPaths = @()
 }
 
 # ---------------------------------------------------------------------------
@@ -50,10 +42,6 @@ $script:DefaultConfig = [ordered]@{
 function Read-Config {
     if (-not (Test-Path $script:ConfigPath)) {
         Write-Config $script:DefaultConfig
-        # Ensure default tools folder exists
-        if (-not (Test-Path $script:DefaultTools)) {
-            $null = New-Item -ItemType Directory -Path $script:DefaultTools -Force
-        }
     }
 
     try {
@@ -67,15 +55,7 @@ function Read-Config {
 
     # Ensure required keys exist (forward-compat: file may lack newer keys)
     if (-not $obj.ContainsKey('toolPaths') -or $null -eq $obj['toolPaths']) {
-        $obj['toolPaths'] = @('./tools')
-    }
-    if (-not $obj.ContainsKey('window') -or $null -eq $obj['window']) {
-        $obj['window'] = $script:DefaultConfig.window
-    }
-    foreach ($key in 'left', 'top', 'width', 'height') {
-        if (-not $obj['window'].ContainsKey($key)) {
-            $obj['window'][$key] = $script:DefaultConfig.window[$key]
-        }
+        $obj['toolPaths'] = @()
     }
 
     return $obj
@@ -89,26 +69,6 @@ function Write-Config {
     catch {
         Write-Warning "Could not save belt.json: $_"
     }
-}
-
-# ---------------------------------------------------------------------------
-# Multi-monitor position validation
-# ---------------------------------------------------------------------------
-function Test-PositionOnScreen {
-    param([double]$Left, [double]$Top, [double]$Width, [double]$Height)
-
-    $screens = [System.Windows.Forms.Screen]::AllScreens
-    $centerX = $Left + ($Width  / 2)
-    $centerY = $Top  + ($Height / 2)
-
-    foreach ($screen in $screens) {
-        $b = $screen.Bounds
-        if ($centerX -ge $b.Left -and $centerX -lt $b.Right -and
-            $centerY -ge $b.Top  -and $centerY -lt $b.Bottom) {
-            return $true
-        }
-    }
-    return $false
 }
 
 # ---------------------------------------------------------------------------
@@ -391,15 +351,6 @@ function Invoke-Tool {
                 </StackPanel>
             </Button>
             <Separator/>
-            <Button Name="BtnOpenFolder" ToolTip="Open tool folder(s) in Explorer"
-                    Padding="8,4">
-                <StackPanel Orientation="Horizontal">
-                    <TextBlock Text="&#x1F4C2;" FontSize="14" VerticalAlignment="Center"
-                               Margin="0,0,4,0"/>
-                    <TextBlock Text="Open Folder" VerticalAlignment="Center"/>
-                </StackPanel>
-            </Button>
-            <Separator/>
             <Button Name="BtnSettings"   ToolTip="Open belt.json in default editor"
                     Padding="8,4">
                 <StackPanel Orientation="Horizontal">
@@ -533,28 +484,7 @@ function Start-BeltApp {
     $script:ToolPanel  = $window.FindName('ToolPanel')
     $script:TxtStatus  = $window.FindName('TxtStatus')
     $btnRefresh        = $window.FindName('BtnRefresh')
-    $btnOpenFolder     = $window.FindName('BtnOpenFolder')
     $btnSettings       = $window.FindName('BtnSettings')
-
-    # ── Apply saved window geometry ──────────────────────────────────────────
-    $win = $config['window']
-    $savedLeft   = [double]$win['left']
-    $savedTop    = [double]$win['top']
-    $savedWidth  = [double]$win['width']
-    $savedHeight = [double]$win['height']
-
-    if (Test-PositionOnScreen -Left $savedLeft -Top $savedTop `
-                              -Width $savedWidth -Height $savedHeight) {
-        $window.Left   = $savedLeft
-        $window.Top    = $savedTop
-    }
-    else {
-        # Saved monitor unavailable — fall back to primary defaults
-        $window.Left   = 100
-        $window.Top    = 100
-    }
-    $window.Width  = [Math]::Max(300, $savedWidth)
-    $window.Height = [Math]::Max(200, $savedHeight)
 
     # ── Initial tool scan ───────────────────────────────────────────────────
     $toolPaths     = [string[]]$config['toolPaths']
@@ -587,34 +517,6 @@ function Start-BeltApp {
         Update-StatusBar -ToolCount $script:Tools.Count `
                          -RunningCount $rc `
                          -RefreshTime $script:LastRefreshTime
-    })
-
-    # ── Toolbar: Open Folder ─────────────────────────────────────────────────
-    $btnOpenFolder.Add_Click({
-        $cfg   = Read-Config
-        $paths = [string[]]$cfg['toolPaths']
-        $opened = 0
-        foreach ($rawPath in $paths) {
-            if (-not [System.IO.Path]::IsPathRooted($rawPath)) {
-                $resolved = Join-Path $script:ScriptRoot $rawPath
-            }
-            else {
-                $resolved = $rawPath
-            }
-            if (Test-Path -LiteralPath $resolved -PathType Container) {
-                Start-Process 'explorer.exe' -ArgumentList $resolved
-                $opened++
-            }
-        }
-        if ($opened -eq 0) {
-            [System.Windows.MessageBox]::Show(
-                $window,
-                'No configured tool folders exist on disk.',
-                'Belt — Open Folder',
-                [System.Windows.MessageBoxButton]::OK,
-                [System.Windows.MessageBoxImage]::Information
-            ) | Out-Null
-        }
     })
 
     # ── Toolbar: Settings ────────────────────────────────────────────────────
@@ -670,15 +572,6 @@ function Start-BeltApp {
             }
         }
 
-        # Save window state
-        $cfg = Read-Config
-        $cfg['window'] = [ordered]@{
-            left   = [Math]::Round($window.Left,   0)
-            top    = [Math]::Round($window.Top,    0)
-            width  = [Math]::Round($window.Width,  0)
-            height = [Math]::Round($window.Height, 0)
-        }
-        Write-Config $cfg
         $timer.Stop()
     })
 

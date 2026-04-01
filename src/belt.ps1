@@ -340,27 +340,6 @@ function Invoke-Tool {
 
     <DockPanel LastChildFill="True">
 
-        <!-- ── Toolbar ── -->
-        <ToolBar DockPanel.Dock="Top" ToolBarTray.IsLocked="True">
-            <Button Name="BtnRefresh"    ToolTip="Re-scan tool folders and rebuild grid"
-                    Padding="8,4">
-                <StackPanel Orientation="Horizontal">
-                    <TextBlock Text="&#x21BA;" FontSize="14" VerticalAlignment="Center"
-                               Margin="0,0,4,0"/>
-                    <TextBlock Text="Refresh" VerticalAlignment="Center"/>
-                </StackPanel>
-            </Button>
-            <Separator/>
-            <Button Name="BtnSettings"   ToolTip="Open belt.json in default editor"
-                    Padding="8,4">
-                <StackPanel Orientation="Horizontal">
-                    <TextBlock Text="&#x2699;" FontSize="14" VerticalAlignment="Center"
-                               Margin="0,0,4,0"/>
-                    <TextBlock Text="Settings" VerticalAlignment="Center"/>
-                </StackPanel>
-            </Button>
-        </ToolBar>
-
         <!-- ── Status Bar ── -->
         <StatusBar DockPanel.Dock="Bottom">
             <StatusBarItem>
@@ -483,8 +462,6 @@ function Start-BeltApp {
     # Named element references
     $script:ToolPanel  = $window.FindName('ToolPanel')
     $script:TxtStatus  = $window.FindName('TxtStatus')
-    $btnRefresh        = $window.FindName('BtnRefresh')
-    $btnSettings       = $window.FindName('BtnSettings')
 
     # ── Initial tool scan ───────────────────────────────────────────────────
     $toolPaths     = [string[]]$config['toolPaths']
@@ -505,35 +482,6 @@ function Start-BeltApp {
         $script:TxtStatus.Text = "$($script:Tools.Count) tools loaded | $runCount running | Refreshed: $($script:LastRefreshTime.ToString('h:mm tt'))"
     })
     $timer.Start()
-
-    # ── Toolbar: Refresh ─────────────────────────────────────────────────────
-    $btnRefresh.Add_Click({
-        $cfg      = Read-Config
-        $paths    = [string[]]$cfg['toolPaths']
-        $script:Tools            = @(Get-ToolList -ToolPaths $paths)
-        $script:LastRefreshTime  = [datetime]::Now
-        Update-ToolPanel -Tools $script:Tools
-        $rc = Get-RunningCount
-        Update-StatusBar -ToolCount $script:Tools.Count `
-                         -RunningCount $rc `
-                         -RefreshTime $script:LastRefreshTime
-    })
-
-    # ── Toolbar: Settings ────────────────────────────────────────────────────
-    $btnSettings.Add_Click({
-        if (-not (Test-Path $script:ConfigPath)) {
-            Write-Config (Read-Config)   # creates it
-        }
-        try {
-            $psi = [System.Diagnostics.ProcessStartInfo]::new($script:ConfigPath)
-            $psi.UseShellExecute = $true
-            [System.Diagnostics.Process]::Start($psi) | Out-Null
-        }
-        catch {
-            # No default app for .json — fall back to Notepad
-            Start-Process 'notepad.exe' -ArgumentList $script:ConfigPath
-        }
-    })
 
     # ── Window closing ───────────────────────────────────────────────────────
     $window.Add_Closing({

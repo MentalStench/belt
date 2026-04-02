@@ -290,6 +290,7 @@ function Invoke-Tool {
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     Title="Belt"
     MinWidth="300" MinHeight="200"
+    Width="650" Height="300"
     UseLayoutRounding="True"
     TextOptions.TextFormattingMode="Display">
 
